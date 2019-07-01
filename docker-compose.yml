@@ -4,7 +4,7 @@
 # the config for that you can see under volumes in the end.
 # Alot of hte config for the containers look the same,
 # that is because I try to use linuxservers containers when possible.
-# 
+# I also use Watchtower to keep mainly Sonnar-preview up to snuff.
 
 version: '3.5'
 services:
