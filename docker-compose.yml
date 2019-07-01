@@ -1,0 +1,136 @@
+# Beside the docker-compose file I have an directory called appdata,
+# inside there I store all the presistent data for the containers.
+# I use a storage server connected via nfs on my LAN, 
+# the config for that you can see under volumes in the end.
+# Alot of hte config for the containers look the same,
+# that is because I try to use linuxservers containers when possible.
+# 
+
+version: '3.5'
+services:
+    sonarr:
+        image: linuxserver/sonarr:preview
+        container_name: sonarr
+        environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=Europe/London
+        ports:
+            - 8080:8989
+        volumes:
+            - ./appdata/sonarr:/config
+            - Series:/tv
+            - Downloads/:/downloads
+        restart: unless-stopped
+
+    radarr:
+        image: linuxserver/radarr
+        container_name: radarr
+        environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=Europe/London
+        ports:
+            - 8081:7878
+        volumes:
+            - ./appdata/radarr:/config
+            - Movies:/movies
+            - Movies4K:/movies4k
+            - Downloads/:/downloads
+        restart: unless-stopped
+
+    nzbget:
+        image: linuxserver/nzbget
+        container_name: nzbget
+        environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=Europe/London
+        ports:
+            - 8082:6789
+        volumes:
+            - ./appdata/nzbget:/config
+            - Downloads/:/downloads
+            - Movies/:/media/movies
+            - Movies4K/:/media//movies4k
+            - Series/:/media/series
+        restart: unless-stopped
+
+    transmission:
+        image: haugene/transmission-openvpn:latest
+        container_name: transmission
+        cap_add:
+            - NET_ADMIN
+        devices:
+            - /dev/net/tun
+        restart: always
+        ports:
+            - 8083:9091
+            - 8888:8888
+        dns:
+            - 1.1.1.1
+            - 8.8.4.4
+        volumes:
+            - /etc/localtime:/etc/localtime:ro
+            - Downloads:/data
+        environment:
+            - OPENVPN_PROVIDER=<vpn-provider-name>
+            - OPENVPN_USERNAME=>username>
+            - OPENVPN_PASSWORD=<user-password>
+            - LOCAL_NETWORK=<local-lan>
+        
+    proxy:
+        image: haugene/transmission-openvpn-proxy:latest
+        container_name: transmission_proxy
+        links:
+            - transmission
+        ports:
+            - 8085:8080
+        volumes:
+            - /etc/localtime:/etc/localtime:ro
+
+    muximux:
+        image: linuxserver/muximux
+        container_name: muximux
+        environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=Europe/London
+        volumes:
+            - ./appdata/muximux:/config
+        ports:
+            - 80:80
+        restart: unless-stopped
+
+    watchtower:
+        image: containrrr/watchtower
+        container_name: watchtower
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        command: --interval 30
+
+volumes:
+    Downloads:
+        driver_opts:
+            type: "nfs"
+            o: "addr=<local storage server>,rw,soft"
+            device: ":/mnt/storage/downloads"
+
+    Movies:
+        driver_opts:
+            type: "nfs"
+            o: "addr=<local storage server>,rw,soft"
+            device: ":/mnt/storage/movies"
+
+    Movies4K:
+        driver_opts:
+            type: "nfs"
+            o: "addr=<local storage server>,rw,soft"
+            device: ":/mnt/storage/movies4k"
+
+    Series:
+        driver_opts:
+            type: "nfs"
+            o: "addr=<local storage server>,rw,soft"
+            device: ":/mnt/storage/series"
+
