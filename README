@@ -1,0 +1,24 @@
+Media-docker-compose
+Version 2
+
+There is now an .env file that contains the VPN info, should not be hard to fill out with your VPN provider of choise.
+
+Also now all services is behind VPN, and here you have a choise.
+ports:
+            - 8080:80               #muximux
+            - 8989:8989             #sonarr
+            - 7878:7878             #radarr
+            - 6789:6789             #nzbget
+            - 9091:9091             #transmisson
+            - 3579:3579             #ombi
+            - 51413:51413           #transmisson
+            - 51413/udp:51413/udp   #transmisson
+
+The first part of the ports are the ones you are gonna use to reach the web ui of every service.
+So here you can go wild and give them an unique number!
+I got them at 8080, 8081, 8082 and so on.
+
+In the end of the compose-file I use this to connect to my nfs-storage-sever so it is kept just for those in the same situation and I hope it can insprie to add support for smb and what not.
+
+Rock on!
+ratnose
