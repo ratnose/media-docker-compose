@@ -1,27 +1,50 @@
-# Beside the docker-compose file I have an directory called appdata,
-# inside there I store all the presistent data for the containers.
-# I use a storage server connected via nfs on my LAN, 
-# the config for that you can see under volumes in the end.
-# Alot of hte config for the containers look the same,
-# that is because I try to use linuxservers containers when possible.
-# I also use Watchtower to keep mainly Sonnar-preview up to snuff.
-
-version: '3.5'
+#Media docker-compose made by me Ratnose with the help of Ixnye at Reddit.
+#This is version 2.
+version: "3.7"
 services:
+    vpn:
+        image: bubuntux/nordvpn
+        container_name: vpn
+        cap_add:
+        - net_admin
+        devices:
+        - /dev/net/tun
+        init: true
+        environment:
+            - USER="${VPNUSER}"
+            - PASS="${VPNPASS}"
+            - COUNTRY="${VPNCOUNTRY}"
+            - PROTOCOL="${VPNPROTOCOL}"
+            - CATEGORY="${VPNCATEGORY}"
+            - NETWORK="${VPNNETWORKLAN}"
+            - OPENVPN_OPTS="${VPNOPENVPN_OPTS}"
+            - TZ="${VPN_TZ}"
+        ports:
+            - 8080:80               #muximux
+            - 8989:8989             #Sonarr
+            - 7878:7878             #Radarr
+            - 6789:6789             #Nzbget
+            - 9091:9091             #transmiosson
+            - 3579:3579             #Ombi
+            - 51413:51413           #transmiosson
+            - 51413/udp:51413/udp   #transmiosson
+        restart: always
+
     sonarr:
         image: linuxserver/sonarr:preview
         container_name: sonarr
         environment:
             - PUID=1000
             - PGID=1000
-            - TZ=Europe/London
-        ports:
-            - 8080:8989
+            - TZ="${VPN_TZ}"
         volumes:
             - ./appdata/sonarr:/config
             - Series:/tv
             - Downloads/:/downloads
         restart: unless-stopped
+        network_mode: "service:vpn"
+        depends_on:
+            - vpn
 
     radarr:
         image: linuxserver/radarr
@@ -29,15 +52,15 @@ services:
         environment:
             - PUID=1000
             - PGID=1000
-            - TZ=Europe/London
-        ports:
-            - 8081:7878
+            - TZ="${VPN_TZ}"
         volumes:
             - ./appdata/radarr:/config
             - Movies:/movies
-            - Movies4K:/movies4k
             - Downloads/:/downloads
         restart: unless-stopped
+        network_mode: "service:vpn"
+        depends_on:
+            - vpn
 
     nzbget:
         image: linuxserver/nzbget
@@ -45,49 +68,30 @@ services:
         environment:
             - PUID=1000
             - PGID=1000
-            - TZ=Europe/London
-        ports:
-            - 8082:6789
+            - TZ="${VPN_TZ}"
         volumes:
             - ./appdata/nzbget:/config
             - Downloads/:/downloads
             - Movies/:/media/movies
-            - Movies4K/:/media//movies4k
-            - Series/:/media/series
         restart: unless-stopped
+        network_mode: "service:vpn"
+        depends_on:
+            - vpn
 
     transmission:
-        image: haugene/transmission-openvpn:latest
+        image: linuxserver/transmission
         container_name: transmission
-        cap_add:
-            - NET_ADMIN
-        devices:
-            - /dev/net/tun
-        restart: always
-        ports:
-            - 8083:9091
-            - 8888:8888
-        dns:
-            - 1.1.1.1
-            - 8.8.4.4
-        volumes:
-            - /etc/localtime:/etc/localtime:ro
-            - Downloads:/data
         environment:
-            - OPENVPN_PROVIDER=<vpn-provider-name>
-            - OPENVPN_USERNAME=>username>
-            - OPENVPN_PASSWORD=<user-password>
-            - LOCAL_NETWORK=<local-lan>
-        
-    proxy:
-        image: haugene/transmission-openvpn-proxy:latest
-        container_name: transmission_proxy
-        links:
-            - transmission
-        ports:
-            - 8085:8080
+            - PUID=1000
+            - PGID=1000
+            - TZ="${VPN_TZ}"
         volumes:
-            - /etc/localtime:/etc/localtime:ro
+            - ./appdata/transmisson:/config
+            - Downloads:/downloads
+        restart: unless-stopped
+        network_mode: "service:vpn"
+        depends_on:
+            - vpn
 
     muximux:
         image: linuxserver/muximux
@@ -95,12 +99,13 @@ services:
         environment:
             - PUID=1000
             - PGID=1000
-            - TZ=Europe/London
+            - TZ="${VPN_TZ}"
         volumes:
             - ./appdata/muximux:/config
-        ports:
-            - 80:80
         restart: unless-stopped
+        network_mode: "service:vpn"
+        depends_on:
+            - vpn
 
     watchtower:
         image: containrrr/watchtower
@@ -109,28 +114,41 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
         command: --interval 30
 
+    ombi:
+        image: linuxserver/ombi
+        container_name: ombi
+        environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ="${VPN_TZ}"
+        volumes:
+            - ./appdata/ombi:/config
+        restart: unless-stopped
+        network_mode: "service:vpn"
+        depends_on:
+            - vpn
+
 volumes:
-    Downloads:
-        driver_opts:
-            type: "nfs"
-            o: "addr=<local storage server>,rw,soft"
-            device: ":/mnt/storage/downloads"
+  Downloads:
+    driver_opts:
+      type: "nfs"
+      o: "addr=<nfs-server-ip>,rw,soft"
+      device: ":/mnt/storage/downloads"
 
-    Movies:
-        driver_opts:
-            type: "nfs"
-            o: "addr=<local storage server>,rw,soft"
-            device: ":/mnt/storage/movies"
+  Movies:
+    driver_opts:
+      type: "nfs"
+      o: "addr=<nfs-server-ip>,rw,soft"
+      device: ":/mnt/storage/movies"
 
-    Movies4K:
-        driver_opts:
-            type: "nfs"
-            o: "addr=<local storage server>,rw,soft"
-            device: ":/mnt/storage/movies4k"
+  Movies4K:
+    driver_opts:
+      type: "nfs"
+      o: "addr=<nfs-server-ip>,rw,soft"
+      device: ":/mnt/storage/movies4k"
 
-    Series:
-        driver_opts:
-            type: "nfs"
-            o: "addr=<local storage server>,rw,soft"
-            device: ":/mnt/storage/series"
-
+  Series:
+    driver_opts:
+      type: "nfs"
+      o: "addr=<nfs-server-ip>,rw,soft"
+      device: ":/mnt/storage/series"
