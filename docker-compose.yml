@@ -4,7 +4,7 @@ version: "3.7"
 services:
     vpn:
         image: bubuntux/nordvpn
-        container_name: vpn
+        container_name: nordvpn
         cap_add:
         - net_admin
         devices:
