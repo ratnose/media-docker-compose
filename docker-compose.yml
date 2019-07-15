@@ -1,66 +1,38 @@
-#Media docker-compose made by me Ratnose with the help of Ixnye at Reddit.
-#This is version 2.
 version: "3.7"
 services:
-    vpn:
-        image: bubuntux/nordvpn
-        container_name: nordvpn
+    transmission:
+        image: haugene/transmission-openvpn:latest
+        container_name: transmission
         cap_add:
-        - net_admin
+            - NET_ADMIN
         devices:
-        - /dev/net/tun
-        init: true
-        environment:
-            - USER="${VPNUSER}"
-            - PASS="${VPNPASS}"
-            - COUNTRY="${VPNCOUNTRY}"
-            - PROTOCOL="${VPNPROTOCOL}"
-            - CATEGORY="${VPNCATEGORY}"
-            - NETWORK="${VPNNETWORKLAN}"
-            - OPENVPN_OPTS="${VPNOPENVPN_OPTS}"
-            - TZ="${VPN_TZ}"
-        ports:
-            - 8080:80               #muximux
-            - 8989:8989             #Sonarr
-            - 7878:7878             #Radarr
-            - 6789:6789             #Nzbget
-            - 9091:9091             #transmiosson
-            - 3579:3579             #Ombi
-            - 51413:51413           #transmiosson
-            - 51413/udp:51413/udp   #transmiosson
+            - /dev/net/tun
         restart: always
-
-    sonarr:
-        image: linuxserver/sonarr:preview
-        container_name: sonarr
-        environment:
-            - PUID=1000
-            - PGID=1000
-            - TZ="${VPN_TZ}"
+        ports:
+            - 9091:9091
+            - 8888:8888
+        dns:
+            - 46.227.67.134
+            - 192.165.9.158
         volumes:
-            - ./appdata/sonarr:/config
-            - Series:/tv
-            - Downloads/:/downloads
-        restart: unless-stopped
-        network_mode: "service:vpn"
-        depends_on:
-            - vpn
-
-    radarr:
-        image: linuxserver/radarr
-        container_name: radarr
+            - /etc/localtime:/etc/localtime:ro
+            - Media:/data
         environment:
-            - PUID=1000
-            - PGID=1000
-            - TZ="${VPN_TZ}"
+            - OPENVPN_PROVIDER=<VPN-provider>
+            - OPENVPN_USERNAME=<username>
+            - OPENVPN_PASSWORD=<password>
+            - LOCAL_NETWORK=<local network ie. 192.168.1.0/16>
+
+    proxy:
+        image: haugene/transmission-openvpn-proxy:latest
+        container_name: transmission_proxy
+        links:
+            - transmission
+        ports:
+            - 8800:8080
         volumes:
-            - ./appdata/radarr:/config
-            - Movies:/movies
-            - Downloads/:/downloads
-        restart: unless-stopped
-        network_mode: "service:vpn"
-        depends_on:
-            - vpn
+            - /etc/localtime:/etc/localtime:ro
+
 
     nzbget:
         image: linuxserver/nzbget
@@ -68,30 +40,44 @@ services:
         environment:
             - PUID=1000
             - PGID=1000
-            - TZ="${VPN_TZ}"
+            - TZ=Europe/Stockholm
         volumes:
             - ./appdata/nzbget:/config
-            - Downloads/:/downloads
-            - Movies/:/media/movies
+            - Media:/media
+        ports:
+            - 8082:6789
+        cap_add:
+            - NET_ADMIN
         restart: unless-stopped
-        network_mode: "service:vpn"
-        depends_on:
-            - vpn
 
-    transmission:
-        image: linuxserver/transmission
-        container_name: transmission
+    sonarr:
+        image: linuxserver/sonarr:preview
+        container_name: sonarr
         environment:
             - PUID=1000
             - PGID=1000
-            - TZ="${VPN_TZ}"
+            - TZ=Europe/Stockholm
         volumes:
-            - ./appdata/transmisson:/config
-            - Downloads:/downloads
+            - ./appdata/sonarr:/config
+            - Media:/media
         restart: unless-stopped
-        network_mode: "service:vpn"
-        depends_on:
-            - vpn
+        ports:
+            - 8080:8989
+
+    couchpotato:
+        image: linuxserver/couchpotato
+        container_name: couchpotato
+        environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=Europe/Stockholm
+            - UMASK_SET=022
+        volumes:
+            - ./appdata/couchpotato:/config
+            - Media:/media
+        ports:
+            - 5050:5050
+        restart: unless-stopped
 
     muximux:
         image: linuxserver/muximux
@@ -103,9 +89,8 @@ services:
         volumes:
             - ./appdata/muximux:/config
         restart: unless-stopped
-        network_mode: "service:vpn"
-        depends_on:
-            - vpn
+        ports:
+            - 80:80
 
     watchtower:
         image: containrrr/watchtower
@@ -114,41 +99,9 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
         command: --interval 30
 
-    ombi:
-        image: linuxserver/ombi
-        container_name: ombi
-        environment:
-            - PUID=1000
-            - PGID=1000
-            - TZ="${VPN_TZ}"
-        volumes:
-            - ./appdata/ombi:/config
-        restart: unless-stopped
-        network_mode: "service:vpn"
-        depends_on:
-            - vpn
-
 volumes:
-  Downloads:
+  Media:
     driver_opts:
       type: "nfs"
-      o: "addr=<nfs-server-ip>,rw,soft"
-      device: ":/mnt/storage/downloads"
-
-  Movies:
-    driver_opts:
-      type: "nfs"
-      o: "addr=<nfs-server-ip>,rw,soft"
-      device: ":/mnt/storage/movies"
-
-  Movies4K:
-    driver_opts:
-      type: "nfs"
-      o: "addr=<nfs-server-ip>,rw,soft"
-      device: ":/mnt/storage/movies4k"
-
-  Series:
-    driver_opts:
-      type: "nfs"
-      o: "addr=<nfs-server-ip>,rw,soft"
-      device: ":/mnt/storage/series"
+      o: "addr=192.10.1.10,rw,soft"
+      device: ":/mnt/storage/"
